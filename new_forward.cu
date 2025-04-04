@@ -5,7 +5,6 @@ namespace eecs471 {
 /*Self-defined Parameters*/
 #define TILE_WIDTH 16
 // #define MAXKernelLength 24*12*7*7
-#define MAX_C 12
 #define MAX_K 7
 // __global__ void forward_kernel(float *y, const float *x, const float *k, const int B, const int M, const int C, const int H, const int W, const int K)
 // {
@@ -68,8 +67,8 @@ __global__ void forward_kernel(float *y, const float *x, const float *k, const i
 
     const int X_tile_width = TILE_WIDTH + K - 1;
     // 声明共享内存，为每个通道分配空间
-    __shared__ float shared_kernel[MAX_C][MAX_K][MAX_K]; 
-    __shared__ float shared_input[MAX_C][TILE_WIDTH + MAX_K - 1][TILE_WIDTH + MAX_K - 1];
+    __shared__ float shared_kernel[MAX_K][MAX_K]; 
+    __shared__ float shared_input[TILE_WIDTH + MAX_K - 1][TILE_WIDTH + MAX_K - 1 +1];
 
     int W_grid = (W_out + TILE_WIDTH - 1) / TILE_WIDTH;
 
@@ -85,25 +84,25 @@ __global__ void forward_kernel(float *y, const float *x, const float *k, const i
     float acc = 0.0f;
     for(int c = 0; c < C; c++){
     // 协作加载输入数据到共享内存
-        for (int i = h; i < h_base + X_tile_width && i < H; i += TILE_WIDTH) {
-            for (int j = w; j < w_base + X_tile_width && j < W; j += TILE_WIDTH) {
-                if (i < H && j < W) {
-                    shared_input[c][i - h_base][j - w_base] = x4d(b, c, i, j);
-                } 
+    for (int i = threadIdx.y; i < X_tile_width; i += blockDim.y) {
+        for (int j = threadIdx.x; j < X_tile_width; j += blockDim.x) {
+            int row_in = h_base + i;
+            int col_in = w_base + j;
+            if (row_in < H && col_in < W) {
+                shared_input[i][j] = x4d(b, c, row_in, col_in);
             }
-
         }
-
+    }
 
         if (threadIdx.x < K && threadIdx.y < K) {
-                shared_kernel[c][threadIdx.y][threadIdx.x] = k4d(m, c, threadIdx.y, threadIdx.x);
+                shared_kernel[threadIdx.y][threadIdx.x] = k4d(m, c, threadIdx.y, threadIdx.x);
         }
         __syncthreads();
 
 
         for (int p = 0; p < K; p++){
             for (int q = 0; q < K; q++){
-                acc += shared_input[c][threadIdx.y + p][threadIdx.x + q] * shared_kernel[c][p][q];
+                acc += shared_input[threadIdx.y + p][threadIdx.x + q] * shared_kernel[p][q];
             }
         }
         __syncthreads();
