@@ -112,7 +112,7 @@ __global__ void forward_kernel_c1(float *y, const float *x, const float *k, cons
     }
 
     // Write final accumulated result (float)
-    if(m < M && h < H_out && w < W_out){
+    if(h < H_out && w < W_out){
         y4d(b, m, h, w) = acc;
     }
 
@@ -230,7 +230,7 @@ __global__ void forward_kernel(float *y, const float *x, const float *k, const i
     }
 
     // Write final accumulated result (float)
-    if(m < M && h < H_out && w < W_out){
+    if(h < H_out && w < W_out){
         y4d(b, m, h, w) = acc;
     }
 
